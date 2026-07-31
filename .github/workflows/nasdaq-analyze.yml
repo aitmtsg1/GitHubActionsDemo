@@ -1,38 +1,74 @@
-name: NASDAQ Analyzer (GH-hosted)
+name: NASDAQ Analyzer (GH-hosted, diagnostic)
 
+# Keep same triggers as before
 on:
   push:
     branches:
       - main
   schedule:
-    - cron: '0 7 * * *'    # daily at 07:00 UTC; change if desired
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Runner debug info
+        run: |
+          echo "===== UNAME ====="; uname -a
+          echo "===== LSB RELEASE ====="; lsb_release -a || true
+          echo "===== DISK ====="; df -h
+          echo "===== MEM ====="; free -m
+          echo "===== PYTHON ====="; python3 --version || true
+          echo "===== PIP ====="; pip --version || true
+          python3 -c "import sys,platform; print(sys.version); print(platform.platform())" || true
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install deps
+      - name: Show python/pip env
         run: |
-          python -m pip install --upgrade pip
-          pip install -r nasdaq_analyzer/requirements.txt
+          python -V
+          pip -V
+          python -c "import sys,site; print(site.getsitepackages())"
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip --version
+
+      - name: Install deps (verbose)
+        run: |
+          set -x
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install --prefer-binary --no-cache-dir -r nasdaq_analyzer/requirements.txt 2>&1 | tee pip-install.log
+          echo "======== pip install exit code: $?"
+          tail -n +1 pip-install.log | sed -n '1,200p'
+        continue-on-error: false
 
       - name: Run analyzer (sample)
         run: |
-          mkdir -p outputs
+          set -x
+          mkdir -p outputs logs
           # Use --sample 200 for initial test to avoid long runs and rate limits
-          python nasdaq_analyzer/analyze.py --sample 200 --out-prefix outputs/nasdaq
+          python nasdaq_analyzer/analyze.py --sample 200 --out-prefix outputs/nasdaq 2>&1 | tee logs/analyze.log
+          tail -n 200 logs/analyze.log || true
 
-      - name: Upload results artifact
+      - name: Upload logs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasdaq-debug-logs
+          path: |
+            pip-install.log
+            logs/
+            outputs/
+
+      - name: Upload results artifact (if any outputs)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nasdaq-results
