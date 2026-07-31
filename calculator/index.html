@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple Calculator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="calculator">
+    <input id="display" class="display" type="text" readonly aria-label="Calculator display" />
+
+    <div class="keys">
+      <button data-action="clear">C</button>
+      <button data-action="back">⌫</button>
+      <button data-action="paren">()</button>
+      <button data-op="/">÷</button>
+
+      <button>7</button>
+      <button>8</button>
+      <button>9</button>
+      <button data-op="*">×</button>
+
+      <button>4</button>
+      <button>5</button>
+      <button>6</button>
+      <button data-op="-">−</button>
+
+      <button>1</button>
+      <button>2</button>
+      <button>3</button>
+      <button data-op="+">+</button>
+
+      <button data-action="percent">%</button>
+      <button>0</button>
+      <button data-action="dot">.</button>
+      <button data-action="equals">=</button>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
