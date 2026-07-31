@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple Calculator (Standalone)</title>
+  <style>
+:root{
+  --bg:#0f1724;
+  --panel:#111827;
+  --accent:#00bcd4;
+  --button:#1f2937;
+  --button-accent:#374151;
+  --text:#e6eef6;
+  --danger:#ef4444;
+}
+
+*{box-sizing:border-box;font-family:Inter,Segoe UI,Roboto,system-ui,Arial;}
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(180deg,#071129 0%, #0b1220 100%);
+  color:var(--text);
+  padding:24px;
+}
+
+.calculator{
+  width:320px;
+  background:linear-gradient(180deg,var(--panel), #0b1220);
+  border-radius:12px;
+  padding:18px;
+  box-shadow:0 10px 30px rgba(2,6,23,0.7);
+}
+
+.display{
+  width:100%;
+  height:56px;
+  border-radius:8px;
+  border:0;
+  margin-bottom:12px;
+  font-size:1.4rem;
+  padding:8px 12px;
+  background:rgba(255,255,255,0.02);
+  color:var(--text);
+  text-align:right;
+  outline:none;
+}
+
+.keys{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+}
+
+.keys button{
+  height:56px;
+  border-radius:8px;
+  border:0;
+  background:var(--button);
+  color:var(--text);
+  font-size:1.1rem;
+  cursor:pointer;
+  transition:transform .06s ease, background .08s;
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,0.25);
+}
+
+.keys button:active{ transform:translateY(1px); }
+
+.keys button[data-op]{
+  background:var(--button-accent);
+  color:#fff;
+}
+
+.keys button[data-action="equals"]{
+  background:var(--accent);
+  color:#022028;
+  font-weight:600;
+}
+
+.keys button[data-action="clear"]{
+  background:linear-gradient(90deg,var(--danger),#b91c1c);
+  color:white;
+}
+
+/* Small accessibility helper */
+.visually-hidden{
+  position:absolute !important;
+  height:1px; width:1px;
+  overflow:hidden; clip:rect(1px,1px,1px,1px);
+  white-space:nowrap; border:0; padding:0; margin:-1px;
+}
+  </style>
+</head>
+<body>
+  <main class="calculator" role="application" aria-labelledby="calc-title">
+    <h1 id="calc-title" class="visually-hidden">Simple Calculator</h1>
+    <input id="display" class="display" type="text" readonly aria-label="Calculator display" />
+
+    <div class="keys" role="group" aria-label="Calculator buttons">
+      <button data-action="clear" aria-label="Clear">C</button>
+      <button data-action="back" aria-label="Backspace">⌫</button>
+      <button data-action="paren" aria-label="Parentheses">()</button>
+      <button data-op="/" aria-label="Divide">÷</button>
+
+      <button>7</button>
+      <button>8</button>
+      <button>9</button>
+      <button data-op="*" aria-label="Multiply">×</button>
+
+      <button>4</button>
+      <button>5</button>
+      <button>6</button>
+      <button data-op="-" aria-label="Minus">−</button>
+
+      <button>1</button>
+      <button>2</button>
+      <button>3</button>
+      <button data-op="+" aria-label="Plus">+</button>
+
+      <button data-action="percent" aria-label="Percent">%</button>
+      <button>0</button>
+      <button data-action="dot" aria-label="Decimal point">.</button>
+      <button data-action="equals" aria-label="Equals">=</button>
+    </div>
+  </main>
+
+  <script>
+// Simple calculator logic using Shunting-yard + RPN evaluation
+// Handles + - * / and parentheses, decimals, percent, backspace, clear, keyboard input.
+
+(function(){
+  const display = document.getElementById('display');
+  const keys = document.querySelector('.keys');
+
+  function updateDisplay(v){ display.value = v; }
+
+  const isOperator = c => ['+','-','*','/'].includes(c);
+
+  function tokenize(expr){
+    const tokens = [];
+    let i = 0;
+    while(i < expr.length){
+      const ch = expr[i];
+      if(ch === ' ') { i++; continue; }
+      if((ch >= '0' && ch <= '9') || ch === '.'
+         || (ch === '-' && (i === 0 || isOperator(expr[i-1]) || expr[i-1] === '(') && (expr[i+1] && (/\d|\./).test(expr[i+1])))){
+        let j = i;
+        if(expr[j] === '-') j++;
+        while(j < expr.length && (expr[j] >= '0' && expr[j] <= '9' || expr[j] === '.')) j++;
+        tokens.push(expr.slice(i, j));
+        i = j;
+        continue;
+      }
+      if(isOperator(ch) || ch === '(' || ch === ')'){
+        tokens.push(ch);
+        i++;
+        continue;
+      }
+      i++;
+    }
+    return tokens;
+  }
+
+  function shuntingYard(tokens){
+    const output = [];
+    const ops = [];
+    const prec = { '+':1, '-':1, '*':2, '/':2 };
+    tokens.forEach(t => {
+      if(!isNaN(Number(t))){ output.push(t); return; }
+      if(isOperator(t)){
+        while(ops.length){
+          const top = ops[ops.length-1];
+          if(isOperator(top) && ((prec[top] > prec[t]) || (prec[top] === prec[t]))){
+            output.push(ops.pop());
+          } else break;
+        }
+        ops.push(t);
+        return;
+      }
+      if(t === '('){ ops.push(t); return; }
+      if(t === ')'){
+        while(ops.length && ops[ops.length-1] !== '('){
+          output.push(ops.pop());
+        }
+        if(ops.length && ops[ops.length-1] === '(') ops.pop();
+        return;
+      }
+    });
+    while(ops.length) output.push(ops.pop());
+    return output;
+  }
+
+  function evaluateRPN(rpn){
+    const stack = [];
+    for(const t of rpn){
+      if(!isNaN(Number(t))){ stack.push(Number(t)); continue; }
+      const b = stack.pop();
+      const a = stack.pop();
+      if(a === undefined || b === undefined) return NaN;
+      let res = NaN;
+      switch(t){
+        case '+': res = a + b; break;
+        case '-': res = a - b; break;
+        case '*': res = a * b; break;
+        case '/': res = b === 0 ? NaN : a / b; break;
+      }
+      stack.push(res);
+    }
+    return stack.length === 1 ? stack[0] : NaN;
+  }
+
+  function safeEval(expr){
+    try{
+      const tokens = tokenize(expr);
+      const rpn = shuntingYard(tokens);
+      const result = evaluateRPN(rpn);
+      if(!isFinite(result) || isNaN(result)) return 'Error';
+      const rounded = Math.round((result + Number.EPSILON) * 1e12)/1e12;
+      return String(rounded);
+    } catch(e){
+      return 'Error';
+    }
+  }
+
+  keys.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button');
+    if(!btn) return;
+    const text = btn.textContent.trim();
+    if(btn.dataset.action === 'clear'){
+      updateDisplay('');
+      return;
+    }
+    if(btn.dataset.action === 'back'){
+      updateDisplay(display.value.slice(0, -1));
+      return;
+    }
+    if(btn.dataset.action === 'dot'){
+      const val = display.value;
+      let lastChunk = '';
+      for(let i=val.length-1; i>=0; i--){
+        const ch = val[i];
+        if(isOperator(ch) || ch === '(' || ch === ')') break;
+        lastChunk = ch + lastChunk;
+      }
+      if(!lastChunk.includes('.')) updateDisplay(val + '.');
+      return;
+    }
+    if(btn.dataset.action === 'percent'){
+      const val = display.value;
+      let i = val.length - 1;
+      while(i >=0 && (val[i] === '.' || (val[i] >= '0' && val[i] <= '9') || (val[i] === '-' && (i===0 || isOperator(val[i-1]) || val[i-1] === '(')))) i--;
+      const last = val.slice(i+1);
+      if(last.length === 0) return;
+      const num = Number(last);
+      if(isNaN(num)) return;
+      const replaced = val.slice(0, i+1) + String(num / 100);
+      updateDisplay(replaced);
+      return;
+    }
+    if(btn.dataset.action === 'paren'){
+      const val = display.value;
+      const opens = (val.match(/\(/g) || []).length;
+      const closes = (val.match(/\)/g) || []).length;
+      if(opens <= closes) updateDisplay(val + '(');
+      else updateDisplay(val + ')');
+      return;
+    }
+    if(btn.dataset.op){
+      updateDisplay(display.value + btn.dataset.op);
+      return;
+    }
+    if(btn.dataset.action === 'equals' || text === '='){
+      const res = safeEval(display.value);
+      updateDisplay(res);
+      return;
+    }
+    updateDisplay(display.value + text);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const allowed = '0123456789+-*/().%';
+    if(e.key === 'Enter' || e.key === '='){
+      e.preventDefault();
+      const res = safeEval(display.value);
+      updateDisplay(res);
+      return;
+    }
+    if(e.key === 'Backspace'){
+      e.preventDefault();
+      updateDisplay(display.value.slice(0, -1));
+      return;
+    }
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      updateDisplay('');
+      return;
+    }
+    if(allowed.includes(e.key)){
+      e.preventDefault();
+      if(e.key === '%'){
+        const btn = document.querySelector('[data-action="percent"]');
+        btn && btn.click();
+        return;
+      }
+      updateDisplay(display.value + e.key);
+      return;
+    }
+  });
+})();
+  </script>
+</body>
+</html>
